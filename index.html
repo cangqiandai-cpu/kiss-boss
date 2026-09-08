@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>我想和谁亲嘴？</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(145deg, #1a0b0b 0%, #3d1a1a 100%);
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            padding: 20px;
+            touch-action: pan-y; /* 保留垂直滚动，但内部canvas阻止 */
+        }
+
+        .card {
+            background: rgba(255, 240, 235, 0.08);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 180, 160, 0.25);
+            border-radius: 60px 60px 40px 40px;
+            padding: 48px 40px 40px;
+            max-width: 640px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 200, 180, 0.15);
+            transition: transform 0.25s ease;
+        }
+
+        .card:hover {
+            transform: scale(1.01);
+        }
+
+        .title {
+            font-size: 22px;
+            font-weight: 300;
+            letter-spacing: 6px;
+            color: #f0c8b8;
+            text-shadow: 0 2px 8px rgba(180, 60, 40, 0.4);
+            margin-bottom: 24px;
+            opacity: 0.8;
+        }
+
+        .sentence {
+            font-size: 38px;
+            font-weight: 700;
+            color: #ffe6dc;
+            text-shadow: 0 4px 20px rgba(255, 100, 60, 0.35);
+            line-height: 1.5;
+            padding: 12px 0;
+            min-height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 4px 8px;
+        }
+
+        /* 名字容器 - 相对定位，用于放置canvas涂层 */
+        .boss-wrapper {
+            display: inline-block;
+            position: relative;
+            vertical-align: baseline;
+            /* 确保与文字对齐 */
+            line-height: inherit;
+        }
+
+        #bossName {
+            display: inline-block;
+            font-weight: 800;
+            font-size: 44px;
+            background: linear-gradient(135deg, #f7797d, #FBD786, #C6FFDD);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 20px rgba(255, 120, 80, 0.25));
+            animation: shimmer 3s ease-in-out infinite;
+            padding: 0 6px;
+            /* 确保文字占据空间 */
+        }
+
+        @keyframes shimmer {
+            0%,
+            100% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+        }
+
+        /* 涂层canvas - 绝对定位覆盖在名字上 */
+        #scratchCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            touch-action: none;
+            /* 阻止触摸滚动/缩放 */
+            pointer-events: auto;
+            border-radius: 12px;
+            /* 边缘圆润，更自然 */
+            box-shadow: 0 0 0 1px rgba(255, 180, 160, 0.2);
+            cursor: pointer;
+        }
+
+        .btn {
+            margin-top: 32px;
+            padding: 16px 48px;
+            font-size: 20px;
+            font-weight: 600;
+            color: #fff0e8;
+            background: linear-gradient(135deg, #c0392b, #e74c3c);
+            border: none;
+            border-radius: 60px;
+            cursor: pointer;
+            box-shadow: 0 8px 28px rgba(200, 50, 30, 0.45);
+            transition: all 0.2s ease;
+            letter-spacing: 2px;
+            position: relative;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        .btn::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, transparent 60%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 12px 36px rgba(200, 50, 30, 0.6);
+        }
+
+        .btn:hover::after {
+            opacity: 1;
+        }
+
+        .btn:active {
+            transform: translateY(2px) scale(0.97);
+            box-shadow: 0 4px 16px rgba(200, 50, 30, 0.4);
+        }
+
+        .footer {
+            margin-top: 28px;
+            font-size: 14px;
+            color: #a07a6e;
+            letter-spacing: 1px;
+            opacity: 0.5;
+            font-weight: 300;
+        }
+
+        .footer a {
+            color: #c99a8a;
+            text-decoration: none;
+            border-bottom: 1px dotted rgba(200, 150, 130, 0.3);
+        }
+
+        .footer a:hover {
+            color: #f0c8b8;
+        }
+
+        /* 手机适配 */
+        @media (max-width: 480px) {
+            .card {
+                padding: 32px 20px 28px;
+                border-radius: 40px 40px 28px 28px;
+            }
+            .sentence {
+                font-size: 28px;
+                min-height: 72px;
+            }
+            #bossName {
+                font-size: 34px;
+            }
+            .btn {
+                padding: 14px 32px;
+                font-size: 17px;
+            }
+            .title {
+                font-size: 18px;
+                letter-spacing: 4px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <div class="title">♥ 今日心动对象 ♥</div>
+
+        <div class="sentence">
+            我想和&nbsp;
+            <span class="boss-wrapper" id="bossWrapper">
+                <span id="bossName">??</span>
+                <canvas id="scratchCanvas"></canvas>
+            </span>
+            &nbsp;亲嘴
+        </div>
+
+        <button class="btn" id="refreshBtn">✨ 换一个 ✨</button>
+        <div class="footer">
+            数据来源：<a href="https://yy16s.huijiwiki.com/wiki/%E5%89%AF%E6%9C%AC" target="_blank">燕云十六声中文维基</a>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // ----- 燕云十六声 · 副本首领名单（来自灰机wiki） -----
+            const bossList = [
+                '花毽魁主', '放排翁', '裴航', '春蚕庄主', '拏云蛇',
+                '观潮客', '虎孟极', '陈子奚', '离思赋', '萧翰',
+                '金人·太簇', '独夫', '笃墨蝎', '御猫大王', '苍',
+                '黑衣贼', '天涯客', '鹏', '柏楚玉', '青',
+                '桃靥剑姬', '耶律阿不里', '司南剑客', '打更人', '郑鄂',
+                '听梅点雪', '沙漠力王', '庆轻轻', '铁心蜈', '玼兮·瑳兮',
+                '太郎', '冯如之', '镇关吼', '五残 人妄', '天禄',
+                '望月婵媛', '田英', '郭昕', '煞地神', '无名将军',
+                '白狼主', '蛇郎中', '道主', '黑财神', '寄棺主',
+                '河伯', '皮影师', '醉拳客', '舞狮兄弟', '鬼公子',
+                '容鸢', '睡道人', '无相皇', '叶万山', '小十七'
+            ];
+
+            const bossNameEl = document.getElementById('bossName');
+            const bossWrapper = document.getElementById('bossWrapper');
+            const canvas = document.getElementById('scratchCanvas');
+            const ctx = canvas.getContext('2d');
+            const refreshBtn = document.getElementById('refreshBtn');
+
+            let isDrawing = false;
+            let isScratched = false; // 可选项，用于判断是否已刮开大部分
+
+            // ---------- 工具：随机首领 ----------
+            function pickRandomBoss() {
+                const randomIndex = Math.floor(Math.random() * bossList.length);
+                return bossList[randomIndex];
+            }
+
+            // ---------- 重置涂层（完全覆盖） ----------
+            function resetCoating() {
+                const rect = bossWrapper.getBoundingClientRect();
+                // 设置canvas实际像素尺寸 (防止模糊)
+                const dpr = window.devicePixelRatio || 1;
+                // 为了清晰，可以乘以dpr，但为了简单且保持刮擦精度，我们直接用CSS像素，并设置width/height为rect尺寸
+                // 但canvas的CSS尺寸是100%，所以width/height应该与rect尺寸一致
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                // 确保canvas的CSS尺寸与父容器匹配（已经由CSS width:100%;height:100%控制）
+                // 绘制灰色涂层，增加质感
+                const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                grad.addColorStop(0, '#b8b0a8');
+                grad.addColorStop(0.5, '#d0c8c0');
+                grad.addColorStop(1, '#a09890');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // 加一点噪点纹理（模仿刮刮卡）
+                for (let i = 0; i < 200; i++) {
+                    const x = Math.random() * canvas.width;
+                    const y = Math.random() * canvas.height;
+                    const r = Math.random() * 3;
+                    const alpha = Math.random() * 0.3;
+                    ctx.beginPath();
+                    ctx.arc(x, y, r, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(80,70,60,${alpha})`;
+                    ctx.fill();
+                }
+
+                // 重置globalCompositeOperation为默认
+                ctx.globalCompositeOperation = 'source-over';
+                // 记录涂层已重置
+                isScratched = false;
+            }
+
+            // ---------- 更新首领 + 重置涂层 ----------
+            function updateBoss() {
+                const name = pickRandomBoss();
+                bossNameEl.textContent = name;
+
+                // 等待DOM更新后获取新的尺寸并重置涂层
+                requestAnimationFrame(() => {
+                    resetCoating();
+                });
+            }
+
+            // ---------- 刮除逻辑 ----------
+            function scratch(x, y) {
+                if (!canvas.width || !canvas.height) return;
+                const rect = canvas.getBoundingClientRect();
+                // 计算相对canvas坐标（因为canvas CSS尺寸与width/height一致，直接使用比例）
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const cx = (x - rect.left) * scaleX;
+                const cy = (y - rect.top) * scaleY;
+
+                // 使用destination-out擦除
+                ctx.save();
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.beginPath();
+                // 圆形画笔，半径20左右（根据画布尺寸调整）
+                const radius = Math.min(canvas.width, canvas.height) * 0.08 + 8;
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // ---------- 事件绑定 ----------
+            // 鼠标事件
+            function onMouseDown(e) {
+                e.preventDefault();
+                isDrawing = true;
+                const pos = e.touches ? e.touches[0] : e;
+                scratch(pos.clientX, pos.clientY);
+            }
+
+            function onMouseMove(e) {
+                e.preventDefault();
+                if (!isDrawing) return;
+                const pos = e.touches ? e.touches[0] : e;
+                scratch(pos.clientX, pos.clientY);
+            }
+
+            function onMouseUp(e) {
+                e.preventDefault();
+                isDrawing = false;
+            }
+
+            // 触摸事件 (移动端)
+            function onTouchStart(e) {
+                e.preventDefault();
+                isDrawing = true;
+                const touch = e.touches[0];
+                scratch(touch.clientX, touch.clientY);
+            }
+
+            function onTouchMove(e) {
+                e.preventDefault();
+                if (!isDrawing) return;
+                const touch = e.touches[0];
+                scratch(touch.clientX, touch.clientY);
+            }
+
+            function onTouchEnd(e) {
+                e.preventDefault();
+                isDrawing = false;
+            }
+
+            // 注册事件 (同时支持鼠标和触摸)
+            canvas.addEventListener('mousedown', onMouseDown);
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+
+            canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+            window.addEventListener('touchmove', onTouchMove, { passive: false });
+            window.addEventListener('touchend', onTouchEnd, { passive: false });
+
+            // 防止从canvas外开始拖拽时刮除（已通过window事件处理）
+
+            // ---------- 换一个按钮 ----------
+            refreshBtn.addEventListener('click', updateBoss);
+
+            // ---------- 页面加载时初始化 ----------
+            // 先设置一个初始名字，再涂层
+            bossNameEl.textContent = '??'; // 占位
+            requestAnimationFrame(() => {
+                updateBoss();
+            });
+
+            // 如果窗口大小改变，可能导致涂层错位，但我们可以重新调整（可选）
+            // 简单起见，不处理resize，因为用户会点击“换一个”刷新
+
+            // 额外：如果用户刮开后想重新刮，可以点击“换一个”
+        })();
+    </script>
+</body>
+</html>
